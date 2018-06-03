@@ -155,7 +155,7 @@ Shamelessly stolen from go-mode (https://github.com/dominikh/go-mode.el)"
             (setq our-elixir-format-arguments (append our-elixir-format-arguments elixir-format-arguments)))
           (setq our-elixir-format-arguments (append our-elixir-format-arguments (list tmpfile)))
 
-          (if (zerop (apply #'call-process elixir-format-elixir-path nil errbuff nil our-elixir-format-arguments))
+          (if (zerop (elixir-format-with-mix elixir-format-elixir-path errbuff our-elixir-format-arguments))
               (progn
                 (if (zerop (call-process-region (point-min) (point-max) "diff" nil outbuff nil "-n" "-" tmpfile))
                     (message "File is already formatted")
@@ -176,6 +176,30 @@ Shamelessly stolen from go-mode (https://github.com/dominikh/go-mode.el)"
 
           (delete-file tmpfile)
           (kill-buffer outbuff)))))
+
+(defun elixir-format-with-mix (elixir-format-elixir-path errbuff our-elixir-format-arguments)
+  (let ((original-default-directory default-directory))
+
+    ;; `call-process': The subprocess gets its current directory from
+    ;; the value of `default-directory'.
+    ;;
+    ;; Since `mix' is meant to be run from the project root directory,
+    ;; the `default-directory' should be set to the project root where
+    ;; `mix.exs' is located.
+    ;;
+    ;; If `mix.exs' is NOT found, the original `default-directory' and
+    ;; default formatter are used for `mix format'.
+    (let ((mix-file (locate-dominating-file
+                     buffer-file-name "mix.exs")))
+
+      (if mix-file
+          (progn (message (concat "elixir-format: found " mix-file "mix.exs"))
+                 (setq default-directory (expand-file-name mix-file)))
+        (message "elixir-format: without mix.exs")))
+
+    (let ((result (apply #'call-process elixir-format-elixir-path nil errbuff nil our-elixir-format-arguments)))
+      (setq default-directory original-default-directory)
+      result)))
 
 (provide 'elixir-format)
 
